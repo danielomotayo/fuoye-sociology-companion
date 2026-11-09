@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {},
+  "dependencies": {
+  "@supabase/supabase-js": "^2.0.0"
+},
   "optionalDependencies": {},
   "devDependencies": {
     "autoprefixer": "^10.4.0",
