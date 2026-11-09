@@ -1,10 +1,9 @@
 import './styles.css';
+import { supabase } from './supabase';
 import { courses as localCourses } from './catalog';
-
 import { deepStudyParts, deepStudyFinal } from './deepStudy';
 import { studySupplement, studySupplementFinal } from './studySupplement';
 import { essayAnswers } from './essayAnswers';
-
 // Register the PWA worker so Android Chrome can use the app install flow.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
