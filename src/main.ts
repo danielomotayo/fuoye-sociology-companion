@@ -1,5 +1,14 @@
 import './styles.css';
 import { supabase } from './supabase';
+import {
+  signUp,
+  signIn,
+  signOut,
+  getCurrentSession,
+  getCurrentUser,
+  resetPassword,
+  onAuthStateChange
+} from './auth';
 import { courses as localCourses } from './catalog';
 import { deepStudyParts, deepStudyFinal } from './deepStudy';
 import { studySupplement, studySupplementFinal } from './studySupplement';
@@ -51,11 +60,90 @@ function render(){
 }
 function aboutPage(){return '<main class="about-page"><header class="page-heading"><span>ABOUT · DEVELOPER PROFILE</span><h1>Meet the Developer</h1><p>The person behind the design, development and deployment of this digital learning platform.</p></header><section class="developer-profile about-developer"><div class="developer-profile-top"><span class="developer-kicker">FOUNDER · KWC TECHNOLOGIES</span><span class="developer-status">OPEN TO PROJECTS & COLLABORATION</span></div><h2>Daniel Omotayo Matthew</h2><h3>Full-Stack Application Engineer</h3><p class="developer-role">Application Development <span>·</span> Product Engineering <span>·</span> App Deployment</p><p class="developer-summary">I build and deploy practical digital products that connect polished interfaces with functional application logic, data services and business workflows. My work focuses on turning ideas into usable web applications, student platforms and business systems, with a focus on practical, user-friendly digital products.</p><div class="developer-skill-heading">ENGINEERING & DELIVERY CAPABILITIES</div><div class="developer-skills"><span>Responsive frontend development</span><span>Application UI/UX implementation</span><span>Backend services and API integration</span><span>Authentication and account workflows</span><span>Database design and data management</span><span>Payment gateway integration</span><span>Admin dashboards and role-based tools</span><span>Progressive Web Apps (PWA)</span><span>Cloud media and file handling</span><span>Testing, debugging and deployment</span><span>Workflow automation and product integration</span><span>Academic and business application systems</span></div><div class="developer-projects"><strong>Project areas:</strong> education technology, SaaS products, business management systems, e-commerce experiences, customer portals, booking platforms, workflow tools, internal business applications and ambitious MVPs.</div><h3>Development approach</h3><p class="developer-summary">Each project is approached through requirements definition, interface planning, application architecture, implementation, integration, testing and deployment. Scope, security, data handling and technical choices are tailored to the project brief. Technology choices are selected according to each project’s requirements.</p><div class="developer-cta"><span>Have a product idea, business challenge or collaboration proposal?</span><a href="mailto:danielomotayomatthew@gmail.com?subject=Project%20Enquiry">Discuss a project <b>↗</b></a></div><small class="developer-build-note">KWC Technologies · Purposeful digital products and practical software solutions.</small></section><section class="panel"><h2>Featured project</h2><p><strong>FUOYE Sociology 100L Companion</strong> — the first department-specific release of DeepStudy, with course resources, Deep Study materials, assessment practice and local study-progress tools.</p></section></main>';}
 function freeLibraryPage(){return '<main class="free-library"><header class="page-heading"><span>OPEN LEARNING RESOURCE · FREE ACCESS</span><h1>Contemporary Sociological Studies</h1><p>Book A: Contemporary Social Theory and Book B: Social Problems.</p><div class="notice"><strong>Free student resource.</strong> This reading page is available without premium payment or approval.</div></header>'+studySupplement.filter(part=>part.title.startsWith('BOOK A')||part.title.startsWith('BOOK B')).map(part=>'<section class="panel"><h2>'+esc(part.title)+'</h2>'+part.chapters.map(ch=>'<details class="study-detail"><summary>'+esc(ch[0])+'</summary><p>'+esc(ch[1])+'</p></details>').join('')+'</section>').join('')+'<section class="panel"><h2>Comparative revision · Major theorists</h2>'+studySupplementFinal.theorists.map(t=>'<article class="def"><b>'+esc(t[0])+'</b><p>'+esc(t[1])+'</p></article>').join('')+'<h2>Key terms</h2>'+studySupplementFinal.keyTerms.map(t=>'<article class="def"><b>'+esc(t[0])+'</b><p>'+esc(t[1])+'</p></article>').join('')+'<h2>Examination skills</h2><ol>'+studySupplementFinal.examFramework.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol><p>'+esc(studySupplementFinal.finalNote)+'</p></section></main>';}
+function bindAuthPage(){
+  const loginForm=document.querySelector('#login-form') as HTMLFormElement;
+  const signupForm=document.querySelector('#signup-form') as HTMLFormElement;
+  const message=document.querySelector('#auth-message') as HTMLElement;
+  const loginTab=document.querySelector('#show-login');
+  const signupTab=document.querySelector('#show-signup');
+
+  if(!loginForm||!signupForm||!message)return;
+
+  if(loginTab)loginTab.addEventListener('click',()=>{
+    loginForm.hidden=false;
+    signupForm.hidden=true;
+    message.textContent='';
+  });
+
+  if(signupTab)signupTab.addEventListener('click',()=>{
+    loginForm.hidden=true;
+    signupForm.hidden=false;
+    message.textContent='';
+  });
+
+  loginForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    message.textContent='Signing in...';
+
+    const email=(document.querySelector('#login-email') as HTMLInputElement).value;
+    const password=(document.querySelector('#login-password') as HTMLInputElement).value;
+
+    const result=await signIn(email,password);
+    message.textContent=result.message;
+
+    if(result.success&&result.session){
+      await loadSession();
+    }
+  });
+
+  signupForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    message.textContent='Creating your account...';
+
+    const name=(document.querySelector('#signup-name') as HTMLInputElement).value;
+    const email=(document.querySelector('#signup-email') as HTMLInputElement).value;
+    const password=(document.querySelector('#signup-password') as HTMLInputElement).value;
+
+    const result=await signUp(email,password,name);
+    message.textContent=result.message;
+
+    if(result.success&&result.session){
+      await loadSession();
+    }
+  });
+
+  const forgot=document.querySelector('#forgot-password');
+  if(forgot)forgot.addEventListener('click',async()=>{
+    const email=(document.querySelector('#login-email') as HTMLInputElement).value;
+
+    if(!email.trim()){
+      message.textContent='Enter your email address first.';
+      return;
+    }
+
+    message.textContent='Sending password recovery instructions...';
+    const result=await resetPassword(email);
+    message.textContent=result.message;
+  });
+}
 async function loadSession(){
- sessionLoading=true;render();
- courses=localCourses; catalog=localCourses;
+ sessionLoading=true;
+
+ const session=await getCurrentSession();
+
+ if(!session){
+  sessionLoading=false;
+  root.innerHTML=authPage();
+  bindAuthPage();
+  return;
+ }
+
+ courses=localCourses;
+ catalog=localCourses;
  loadUserState();
- sessionLoading=false;render();
+
+ sessionLoading=false;
+ render();
 }
 function legalPage(kind){const isTerms=kind==='terms';const title=isTerms?'Terms of Use':'Privacy Notice';const content=isTerms?'<p>DeepStudy is an independent academic learning aid. It is not an official FUOYE website and does not replace official university or departmental instructions.</p><h3>Study materials</h3><p>Course codes, titles and study materials are provided for revision. Verify current registration requirements, course details and assessment guidance with FUOYE.</p><h3>Local use</h3><p>This first release does not offer online accounts, paid access or payment processing. Your display name, notes, theme and study progress are stored locally in your browser on this device.</p><h3>Responsible use</h3><p>Use the app for personal study. Do not present unofficial information as an official university announcement or redistribute materials without permission.</p>':'<p>This first release of DeepStudy does not require sign-in and does not send your study profile to a DeepStudy server.</p><h3>Information stored</h3><p>Your display name, notes, theme preferences, mastered definitions, study plan and CBT results are stored in local browser storage on the device you use.</p><h3>Storage and deletion</h3><p>Local browser data does not synchronize between devices. Clearing browser site data may permanently remove it. You can use Reset local progress in Settings to clear study progress; notes can be deleted individually.</p><h3>External resources</h3><p>The app may load images and community links from external providers such as Cloudinary and WhatsApp. Those providers may process requests under their own privacy policies.</p>';
 return '<main class="gate legal-page"><section class="hero"><img class="brand-logo" src="https://res.cloudinary.com/jofginy8/image/upload/v1794091753/Screenshot_20261107-234518.jpg" alt="DeepStudy logo"><span>DEEPSTUDY · FUOYE SOCIOLOGY</span><h1>'+title+'</h1><p>Last updated: 7 November 2026</p></section><section class="panel legal-copy">'+content+'<p class="legal-contact">Questions? Contact danielomotayomatthew@gmail.com.</p><a class="legal-back" href="/">← Back to DeepStudy</a></section></main>';}
@@ -99,6 +187,44 @@ function bind(){
  const reset=document.querySelector('#reset');if(reset)reset.onclick=()=>{if(confirm('Reset all local study progress and CBT history?')){mastered=[];plan=[];attempts=[];set('mastered',mastered);set('plan',plan);set('attempts',attempts);render()}};
 
  const again=document.querySelector('#again');if(again)again.onclick=()=>{exam=null;view='cbt';render()};
+}
+function authPage(){
+return `
+<main class="auth-page">
+  <section class="auth-card">
+    <h1>Welcome to DeepStudy Uni</h1>
+    <p>Your academic journey, connected.</p>
+
+    <div class="auth-tabs">
+      <button id="show-login">Log In</button>
+      <button id="show-signup">Create Account</button>
+    </div>
+
+    <form id="login-form">
+      <h2>Welcome back</h2>
+      <label>Email address</label>
+      <input id="login-email" type="email" required placeholder="Enter your email">
+      <label>Password</label>
+      <input id="login-password" type="password" required placeholder="Enter your password">
+      <button type="submit">Log In</button>
+      <button type="button" id="forgot-password">Forgot password?</button>
+    </form>
+
+    <form id="signup-form" hidden>
+      <h2>Create your student account</h2>
+      <label>Full name</label>
+      <input id="signup-name" type="text" required placeholder="Enter your full name">
+      <label>Email address</label>
+      <input id="signup-email" type="email" required placeholder="Enter your email">
+      <label>Password</label>
+      <input id="signup-password" type="password" minlength="8" required placeholder="At least 8 characters">
+      <button type="submit">Create Account</button>
+    </form>
+
+    <p id="auth-message" role="status"></p>
+  </section>
+</main>
+`;
 }
 function renderCourse(){root.innerHTML=course?coursePage(course)+nav():home();finishRender();bind()}
 applyTheme();
