@@ -115,4 +115,5 @@ export function onAuthStateChange(
   });
 
   return data.subscription;
-      }
+}
+      
