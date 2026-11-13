@@ -1,0 +1,44 @@
+name: Build DeepStudy Netlify ZIP
+
+on:
+  push:
+    branches:
+      - deepstudy-authentication
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build DeepStudy
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Package Netlify website
+        run: |
+          cd dist
+          zip -r ../deepstudy-netlify.zip .
+
+      - name: Upload Netlify ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeepStudy-Netlify-Deployment
+          path: deepstudy-netlify.zip
+          retention-days: 30
